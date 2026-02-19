@@ -73,18 +73,12 @@ export async function submitAnswer(
   });
   if (error) throw error;
 
-  // Update total score
-  const { data: player } = await supabase
-    .from("players")
-    .select("total_score")
-    .eq("id", playerId)
-    .single();
-
-  if (player) {
-    await supabase
-      .from("players")
-      .update({ total_score: player.total_score + score })
-      .eq("id", playerId);
+  // Atomically increment total score
+  if (score > 0) {
+    await supabase.rpc("increment_player_score", {
+      p_player_id: playerId,
+      p_score: score,
+    });
   }
 }
 
