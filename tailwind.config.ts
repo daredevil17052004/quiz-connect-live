@@ -13,6 +13,9 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ['Nunito', 'sans-serif'],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -46,6 +49,12 @@ export default {
         card: {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
+        },
+        answer: {
+          red: "hsl(var(--answer-red))",
+          blue: "hsl(var(--answer-blue))",
+          green: "hsl(var(--answer-green))",
+          orange: "hsl(var(--answer-orange))",
         },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
