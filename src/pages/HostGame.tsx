@@ -1,7 +1,7 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { updateSession, getPlayers, getResponses } from "@/lib/quiz";
+import { updateSession, getPlayers, getPlayerCount, getResponseCount } from "@/lib/quiz";
 import { quizQuestions } from "@/data/quizData";
 import { Button } from "@/components/ui/button";
 import Leaderboard from "@/components/Leaderboard";
@@ -16,24 +16,48 @@ interface Player {
   created_at: string;
 }
 
+const MAX_LOBBY_NAMES = 50;
+
 const HostGame = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
   const [session, setSession] = useState<any>(null);
   const [players, setPlayers] = useState<Player[]>([]);
+  const [playerCount, setPlayerCount] = useState(0);
   const [responseCount, setResponseCount] = useState(0);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+
+  // Debounce realtime player updates
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const fetchPlayerCount = useCallback(async () => {
+    if (!sessionId) return;
+    const count = await getPlayerCount(sessionId);
+    setPlayerCount(count);
+  }, [sessionId]);
 
   const fetchPlayers = useCallback(async () => {
     if (!sessionId) return;
     const p = await getPlayers(sessionId);
     setPlayers(p);
+    setPlayerCount(p.length);
   }, [sessionId]);
 
-  const fetchResponses = useCallback(async (qIndex: number) => {
+  const fetchLobbyPlayers = useCallback(async () => {
     if (!sessionId) return;
-    const r = await getResponses(sessionId, qIndex);
-    setResponseCount(r.length);
+    // For lobby, only fetch recent names (limited) + total count
+    const [p, count] = await Promise.all([
+      getPlayers(sessionId, MAX_LOBBY_NAMES),
+      getPlayerCount(sessionId),
+    ]);
+    setPlayers(p);
+    setPlayerCount(count);
+  }, [sessionId]);
+
+  const fetchResponseCount = useCallback(async (qIndex: number) => {
+    if (!sessionId) return;
+    const count = await getResponseCount(sessionId, qIndex);
+    setResponseCount(count);
   }, [sessionId]);
 
   // Load session
@@ -49,33 +73,44 @@ const HostGame = () => {
       else navigate("/host");
     };
     load();
-    fetchPlayers();
-  }, [sessionId, navigate, fetchPlayers]);
+    fetchLobbyPlayers();
+  }, [sessionId, navigate, fetchLobbyPlayers]);
 
-  // Realtime subscriptions
+  // Realtime subscriptions with debounce
   useEffect(() => {
     if (!sessionId) return;
 
     const channel = supabase
       .channel(`host-${sessionId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "players", filter: `session_id=eq.${sessionId}` }, () => {
-        fetchPlayers();
+        // Debounce player list refreshes to avoid hammering DB with 1000 rapid joins
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => {
+          if (session?.status === "waiting") {
+            fetchLobbyPlayers();
+          } else {
+            fetchPlayerCount();
+          }
+        }, 500);
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "player_responses", filter: `session_id=eq.${sessionId}` }, () => {
-        if (session) fetchResponses(session.current_question);
+        if (session) fetchResponseCount(session.current_question);
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
-  }, [sessionId, session?.current_question, fetchPlayers, fetchResponses, session]);
+    return () => {
+      supabase.removeChannel(channel);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [sessionId, session?.current_question, session?.status, fetchLobbyPlayers, fetchPlayerCount, fetchResponseCount, session]);
 
   // Refresh responses when question changes
   useEffect(() => {
     if (session?.status === "active") {
       setResponseCount(0);
-      fetchResponses(session.current_question);
+      fetchResponseCount(session.current_question);
     }
-  }, [session?.current_question, session?.status, fetchResponses]);
+  }, [session?.current_question, session?.status, fetchResponseCount]);
 
   const startQuiz = async () => {
     await updateSession(sessionId!, { status: "active", current_question: 0, question_start_time: new Date().toISOString() });
@@ -84,7 +119,6 @@ const HostGame = () => {
   };
 
   const nextQuestion = async () => {
-    // First show leaderboard
     if (!showLeaderboard) {
       await fetchPlayers();
       setShowLeaderboard(true);
@@ -137,6 +171,7 @@ const HostGame = () => {
 
   // Waiting lobby
   if (session.status === "waiting") {
+    const extraCount = playerCount - players.length;
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
         <div className="w-full max-w-lg text-center animate-slide-up">
@@ -149,17 +184,22 @@ const HostGame = () => {
           </div>
           <div className="rounded-2xl bg-card p-6 mb-6">
             <p className="text-lg text-muted-foreground mb-4">
-              {players.length} player{players.length !== 1 ? "s" : ""} joined
+              {playerCount} player{playerCount !== 1 ? "s" : ""} joined
             </p>
-            <div className="flex flex-wrap gap-2 justify-center">
+            <div className="flex flex-wrap gap-2 justify-center max-h-60 overflow-y-auto">
               {players.map((p) => (
                 <span key={p.id} className="px-4 py-2 bg-secondary rounded-full font-bold animate-bounce-in">
                   {p.name}
                 </span>
               ))}
+              {extraCount > 0 && (
+                <span className="px-4 py-2 bg-secondary/50 rounded-full font-bold text-muted-foreground">
+                  +{extraCount} more
+                </span>
+              )}
             </div>
           </div>
-          <Button onClick={startQuiz} disabled={players.length === 0} size="lg" className="h-14 px-12 text-xl font-bold">
+          <Button onClick={startQuiz} disabled={playerCount === 0} size="lg" className="h-14 px-12 text-xl font-bold">
             🚀 Start Quiz
           </Button>
         </div>
@@ -196,7 +236,7 @@ const HostGame = () => {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-4">
           <span className="text-sm text-muted-foreground">PIN: <span className="font-bold text-accent">{session.pin}</span></span>
-          <span className="text-sm text-muted-foreground">👥 {players.length}</span>
+          <span className="text-sm text-muted-foreground">👥 {playerCount}</span>
         </div>
         <div className="flex gap-2">
           <Button onClick={pauseResume} variant="secondary" size="sm">
@@ -239,7 +279,7 @@ const HostGame = () => {
             </div>
             <div className="text-center">
               <p className="text-lg text-muted-foreground mb-4">
-                {responseCount} / {players.length} answered
+                {responseCount} / {playerCount} answered
               </p>
               <Button onClick={nextQuestion} size="lg" className="h-14 px-12 text-xl font-bold">
                 📊 Show Leaderboard
