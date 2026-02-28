@@ -43,14 +43,24 @@ export async function joinSession(sessionId: string, playerName: string) {
   return data;
 }
 
-export async function getPlayers(sessionId: string) {
+export async function getPlayers(sessionId: string, limit = 1000) {
   const { data, error } = await supabase
     .from("players")
     .select("*")
     .eq("session_id", sessionId)
-    .order("total_score", { ascending: false });
+    .order("total_score", { ascending: false })
+    .limit(limit);
   if (error) throw error;
   return data ?? [];
+}
+
+export async function getPlayerCount(sessionId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from("players")
+    .select("*", { count: "exact", head: true })
+    .eq("session_id", sessionId);
+  if (error) throw error;
+  return count ?? 0;
 }
 
 export async function submitAnswer(
@@ -82,6 +92,16 @@ export async function submitAnswer(
   }
 }
 
+export async function getResponseCount(sessionId: string, questionIndex: number): Promise<number> {
+  const { count, error } = await supabase
+    .from("player_responses")
+    .select("*", { count: "exact", head: true })
+    .eq("session_id", sessionId)
+    .eq("question_index", questionIndex);
+  if (error) throw error;
+  return count ?? 0;
+}
+
 export async function getResponses(sessionId: string, questionIndex: number) {
   const { data, error } = await supabase
     .from("player_responses")
@@ -95,5 +115,5 @@ export async function getResponses(sessionId: string, questionIndex: number) {
 export function calculateScore(isCorrect: boolean, responseTimeMs: number, timeLimitMs: number = 20000): number {
   if (!isCorrect) return 0;
   const timeBonus = Math.max(0, Math.round((1 - responseTimeMs / timeLimitMs) * 500));
-  return 500 + timeBonus; // Base 500 + up to 500 speed bonus
+  return 500 + timeBonus;
 }
