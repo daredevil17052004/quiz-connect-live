@@ -5,6 +5,7 @@ import { submitAnswer, calculateScore, getPlayers } from "@/lib/quiz";
 import { quizQuestions } from "@/data/quizData";
 import Leaderboard from "@/components/Leaderboard";
 import confetti from "canvas-confetti";
+import awsLogo from "@/assets/aws-cloud-clubs-logo.webp";
 
 interface Player {
   id: string;
@@ -129,7 +130,9 @@ const PlayerGame = () => {
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
         <div className="text-center animate-slide-up">
-          <h1 className="text-4xl font-black text-glow mb-4">⚡ QuizBlitz</h1>
+          <img src={awsLogo} alt="AWS Cloud Clubs" className="w-16 h-16 mx-auto mb-2 object-contain" />
+          <h1 className="text-3xl font-black text-glow mb-1">AWS Cloud Club</h1>
+          <p className="text-lg font-bold text-accent mb-2">⚡ QuizBlitz</p>
           <div className="text-6xl mb-6 animate-pulse-glow">⏳</div>
           <p className="text-xl text-muted-foreground">Waiting for host to start...</p>
         </div>

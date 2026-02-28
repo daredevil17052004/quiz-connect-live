@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import Leaderboard from "@/components/Leaderboard";
 import confetti from "canvas-confetti";
 import { toast } from "sonner";
+import awsLogo from "@/assets/aws-cloud-clubs-logo.webp";
 
 interface Player {
   id: string;
@@ -175,7 +176,9 @@ const HostGame = () => {
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
         <div className="w-full max-w-lg text-center animate-slide-up">
-          <h1 className="text-4xl font-black text-glow mb-2">⚡ QuizBlitz</h1>
+          <img src={awsLogo} alt="AWS Cloud Clubs" className="w-20 h-20 mx-auto mb-2 object-contain" />
+          <h1 className="text-3xl font-black text-glow mb-1">AWS Cloud Club</h1>
+          <p className="text-lg font-bold text-accent mb-0">⚡ QuizBlitz</p>
           <div className="my-8">
             <p className="text-muted-foreground text-lg mb-2">Game PIN</p>
             <div className="text-7xl font-black tracking-widest text-accent animate-pulse-glow">
