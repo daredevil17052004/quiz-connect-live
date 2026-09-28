@@ -25,7 +25,16 @@ export async function getSessionByPin(pin: string) {
   return data;
 }
 
-export async function updateSession(sessionId: string, updates: Record<string, unknown>) {
+export async function updateSession(
+  sessionId: string,
+  updates: Partial<{
+    status: string;
+    current_question: number;
+    question_start_time: string;
+    pin: string;
+    host_id: string;
+  }>
+) {
   const { error } = await supabase
     .from("quiz_sessions")
     .update(updates)
